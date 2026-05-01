@@ -90,12 +90,38 @@ function App() {
 
     try {
       const response = await axios.post('/api/generate-recipes', {
-        prompt, ingredients, diet, cuisine, mealType,
+        prompt,
+        ingredients,
+        diet,
+        cuisine,
+        mealType,
       });
-      setRecipes(response.data.recipes || []);
+
+      if (response.data && response.data.recipes) {
+        setRecipes(response.data.recipes);
+        // Auto scroll to results after a short delay
+        setTimeout(() => {
+          resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }, 300);
+      } else {
+        setError('No recipes returned. Please try different ingredients.');
+      }
+
     } catch (err) {
-      setError(err.response?.data?.error || 'Something went wrong. Please check your API key and try again.');
-      console.error(err);
+      console.error('Generate recipes error:', err);
+      
+      if (err.response?.status === 401) {
+        setError('API key error. Please contact support.');
+      } else if (err.response?.status === 429) {
+        setError('Too many requests. Please wait a moment and try again.');
+      } else if (err.response?.status === 408) {
+        setError('Request timed out. Please try again.');
+      } else {
+        setError(
+          err.response?.data?.error ||
+          'Something went wrong. Please try again.'
+        );
+      }
     } finally {
       setLoading(false);
     }
