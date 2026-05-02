@@ -77,21 +77,65 @@ function App() {
     setRecipes([]);
 
     const prompt = `
-      You are a professional chef. Generate 3 creative recipes using these ingredients: ${ingredients.join(', ')}.
-      Filters: Diet: ${diet}, Cuisine: ${cuisine}, Meal Type: ${mealType}.
-      Return ONLY a JSON array with this structure (no extra text):
-      [{ "name":"","emoji":"","description":"","prepTime":"","cookTime":"","servings":"","difficulty":"Easy","calories":"","ingredients":[],"steps":[],"tips":"" }]
+      Generate exactly 3 creative recipes using 
+      these ingredients: ${ingredients.join(', ')}.
+
+      Filters to apply:
+      - Diet: ${diet}
+      - Cuisine: ${cuisine}
+      - Meal Type: ${mealType}
+
+      Return a JSON array with exactly 3 recipes.
+      Each recipe must follow this exact structure:
+      [
+        {
+          "name": "Recipe Name Here",
+          "emoji": "🍕",
+          "description": "One sentence description",
+          "prepTime": "15 mins",
+          "cookTime": "30 mins",
+          "servings": "4",
+          "difficulty": "Easy",
+          "calories": "350 per serving",
+          "ingredients": [
+            "200g ingredient with amount",
+            "2 tbsp ingredient with amount"
+          ],
+          "steps": [
+            "Step 1: Do this first",
+            "Step 2: Then do this",
+            "Step 3: Finally do this"
+          ],
+          "tips": "One helpful cooking tip here"
+        }
+      ]
+
+      CRITICAL: Return ONLY the JSON array.
+      No text before. No text after.
+      No markdown. No backticks.
+      Start your response with [ and end with ]
     `;
 
     try {
       const response = await axios.post(
-        'https://api.openai.com/v1/chat/completions',
+        'https://api.groq.com/openai/v1/chat/completions',
         {
-          model: 'gpt-3.5-turbo',
+          model: 'llama3-8b-8192',
           messages: [
             {
               role: 'system',
-              content: 'You are a professional chef. Return ONLY a valid JSON array. No markdown, no extra text, just pure JSON array.'
+              content: `You are a professional chef assistant. 
+              Your ONLY job is to return a valid JSON array of recipes.
+              STRICT RULES:
+              - Return ONLY a JSON array
+              - NO markdown code blocks
+              - NO backticks
+              - NO extra text before or after
+              - NO explanation
+              - Just the raw JSON array starting with [ and ending with ]
+              - Each recipe must have exactly these fields:
+                name, emoji, description, prepTime, cookTime,
+                servings, difficulty, calories, ingredients, steps, tips`
             },
             {
               role: 'user',
@@ -99,35 +143,71 @@ function App() {
             }
           ],
           max_tokens: 2500,
-          temperature: 0.8,
+          temperature: 0.7,
         },
         {
           headers: {
-            Authorization: `Bearer ${process.env.REACT_APP_OPENAI_API_KEY}`,
+            Authorization: `Bearer ${process.env.REACT_APP_GROQ_API_KEY}`,
             'Content-Type': 'application/json',
           },
+          timeout: 30000,
         }
       );
 
-      const raw     = response.data.choices[0].message.content;
-      const clean   = raw.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-      const recipes = JSON.parse(clean);
+      const raw = response.data.choices[0].message.content;
+      console.log('Groq raw response:', raw.substring(0, 200));
+
+      // Clean the response - remove any markdown if present
+      let clean = raw
+        .replace(/```json\n?/gi, '')
+        .replace(/```\n?/g, '')
+        .trim();
+
+      // Find JSON array in response
+      const startIndex = clean.indexOf('[');
+      const endIndex   = clean.lastIndexOf(']');
+
+      if (startIndex === -1 || endIndex === -1) {
+        throw new Error('No valid JSON array found in response');
+      }
+
+      clean = clean.substring(startIndex, endIndex + 1);
+
+      let recipes;
+      try {
+        recipes = JSON.parse(clean);
+      } catch (parseErr) {
+        console.error('JSON parse error:', parseErr);
+        throw new Error('Failed to parse recipe data. Please try again.');
+      }
+
+      if (!Array.isArray(recipes) || recipes.length === 0) {
+        throw new Error('No recipes returned. Please try again.');
+      }
+
       setRecipes(recipes);
+      setError('');
 
       setTimeout(() => {
-        resultsRef.current?.scrollIntoView({ 
-          behavior: 'smooth', block: 'start' 
+        resultsRef.current?.scrollIntoView({
+          behavior: 'smooth',
+          block: 'start'
         });
       }, 300);
 
     } catch (err) {
       console.error('Recipe generation error:', err);
+
       if (err.response?.status === 401) {
-        setError('Invalid API key. Please check your OpenAI key.');
+        setError('Invalid Groq API key. Please check your key at console.groq.com');
       } else if (err.response?.status === 429) {
-        setError('API quota exceeded. Check your OpenAI billing at platform.openai.com');
-      } else if (err.response?.status === 500) {
-        setError('OpenAI server error. Please try again in a moment.');
+        setError('Too many requests. Please wait a moment and try again.');
+      } else if (err.response?.status === 400) {
+        setError('Bad request. Please try with different ingredients.');
+      } else if (err.response?.status === 503) {
+        setError('Groq service unavailable. Please try again in a moment.');
+      } else if (err.message) {
+        setError(err.message);
       } else {
         setError('Something went wrong. Please try again.');
       }
