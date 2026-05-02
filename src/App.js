@@ -58,12 +58,7 @@ function App() {
     }, 50);
   };
 
-  const scrollToResults = () => {
-    setActivePage('discover');
-    setTimeout(() => {
-      resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }, 50);
-  };
+
 
   const parseMinutes = (val) => {
     const m = String(val || '').match(/\d+/);
