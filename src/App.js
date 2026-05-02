@@ -84,38 +84,52 @@ function App() {
     `;
 
     try {
-      const response = await axios.post('/api/generate-recipes', {
-        prompt,
-        ingredients,
-        diet,
-        cuisine,
-        mealType,
-      });
+      const response = await axios.post(
+        'https://api.openai.com/v1/chat/completions',
+        {
+          model: 'gpt-3.5-turbo',
+          messages: [
+            {
+              role: 'system',
+              content: 'You are a professional chef. Return ONLY a valid JSON array. No markdown, no extra text, just pure JSON array.'
+            },
+            {
+              role: 'user',
+              content: prompt
+            }
+          ],
+          max_tokens: 2500,
+          temperature: 0.8,
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${process.env.REACT_APP_OPENAI_API_KEY}`,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
 
-      if (response.data && response.data.recipes) {
-        setRecipes(response.data.recipes);
-        // Auto scroll to results after a short delay
-        setTimeout(() => {
-          resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }, 300);
-      } else {
-        setError('No recipes returned. Please try different ingredients.');
-      }
+      const raw     = response.data.choices[0].message.content;
+      const clean   = raw.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+      const recipes = JSON.parse(clean);
+      setRecipes(recipes);
+
+      setTimeout(() => {
+        resultsRef.current?.scrollIntoView({ 
+          behavior: 'smooth', block: 'start' 
+        });
+      }, 300);
 
     } catch (err) {
-      console.error('Generate recipes error:', err);
-      
+      console.error('Recipe generation error:', err);
       if (err.response?.status === 401) {
-        setError('API key error. Please contact support.');
+        setError('Invalid API key. Please check your OpenAI key.');
       } else if (err.response?.status === 429) {
-        setError('Too many requests. Please wait a moment and try again.');
-      } else if (err.response?.status === 408) {
-        setError('Request timed out. Please try again.');
+        setError('API quota exceeded. Check your OpenAI billing at platform.openai.com');
+      } else if (err.response?.status === 500) {
+        setError('OpenAI server error. Please try again in a moment.');
       } else {
-        setError(
-          err.response?.data?.error ||
-          'Something went wrong. Please try again.'
-        );
+        setError('Something went wrong. Please try again.');
       }
     } finally {
       setLoading(false);
