@@ -77,39 +77,82 @@ function App() {
     setRecipes([]);
 
     const prompt = `
-Generate exactly 3 recipes using these
-ingredients: ${ingredients.join(', ')}.
+Create exactly 3 detailed restaurant-quality 
+recipes using these ingredients: ${ingredients.join(', ')}.
 
-Diet: ${diet}
-Cuisine: ${cuisine}  
-Meal Type: ${mealType}
+Filters:
+- Diet: ${diet}
+- Cuisine: ${cuisine}
+- Meal Type: ${mealType}
 
-Respond with ONLY this JSON structure:
+CRITICAL REQUIREMENTS FOR EACH RECIPE:
+
+1. STEPS must be detailed cooking instructions:
+   - Minimum 8 steps, maximum 12 steps
+   - Each step must be 2-3 sentences minimum
+   - Include exact cooking temperature 
+     (e.g. "medium-high heat, around 180°C")
+   - Include exact timing 
+     (e.g. "cook for exactly 4-5 minutes")
+   - Include visual cues 
+     (e.g. "until golden brown and crispy")
+   - Include technique details
+     (e.g. "stir constantly to prevent burning")
+   - Explain why each step matters
+     (e.g. "this seals in the juices")
+
+2. INGREDIENTS must include:
+   - Exact measurements (grams, cups, tbsp)
+   - At least 6-8 ingredients per recipe
+   - Preparation notes 
+     (e.g. "2 cloves garlic, finely minced")
+
+3. DESCRIPTION must be 2-3 sentences describing
+   the dish, its flavors and textures
+
+4. TIPS must be a detailed professional tip
+   of at least 2-3 sentences
+
+Return ONLY this exact JSON structure:
 [
   {
-    "name": "Recipe Name",
-    "emoji": "🍕",
-    "description": "Short one line description",
-    "prepTime": "15 mins",
-    "cookTime": "30 mins",
+    "name": "Full Recipe Name",
+    "emoji": "🍗",
+    "description": "A rich and flavorful dish that combines the smokiness of grilled chicken with the freshness of herbs. Perfect for a weeknight dinner that feels restaurant-quality. The secret is in the marinade that tenderizes the meat perfectly.",
+    "prepTime": "20 mins",
+    "cookTime": "35 mins",
     "servings": "4",
-    "difficulty": "Easy",
-    "calories": "350 per serving",
+    "difficulty": "Medium",
+    "calories": "420 per serving",
     "ingredients": [
-      "200g ingredient name",
-      "2 tbsp ingredient name"
+      "500g chicken breast, cut into 2cm cubes",
+      "3 cloves garlic, finely minced",
+      "2 tbsp olive oil, extra virgin",
+      "1 tsp smoked paprika",
+      "1 medium onion, finely diced",
+      "200ml chicken stock, low sodium",
+      "2 tbsp fresh lemon juice",
+      "Salt and black pepper to taste"
     ],
     "steps": [
-      "Step 1: Do this",
-      "Step 2: Do that",
-      "Step 3: Finish like this"
+      "Step 1 - Prepare the marinade: In a large mixing bowl, combine the minced garlic, olive oil, smoked paprika, and lemon juice. Whisk everything together until fully combined. The acid in the lemon juice will help tenderize the chicken while the oil carries the flavors deep into the meat.",
+      "Step 2 - Marinate the chicken: Add the chicken cubes to the marinade and toss well to coat every piece evenly. Cover the bowl with plastic wrap and refrigerate for at least 15 minutes, or up to 2 hours for deeper flavor. The longer it marinates, the more flavorful and tender your chicken will be.",
+      "Step 3 - Prepare your vegetables: While the chicken marinates, finely dice the onion into small even pieces about 5mm in size. Uniform cutting ensures everything cooks at the same rate. Set aside on a clean cutting board.",
+      "Step 4 - Heat your pan: Place a large heavy-bottomed skillet or cast iron pan over medium-high heat and let it heat for 2 full minutes until very hot. A properly heated pan creates a beautiful sear that locks in the juices. You will know it is ready when a drop of water immediately sizzles and evaporates.",
+      "Step 5 - Sear the chicken: Add the marinated chicken pieces in a single layer - do not overcrowd the pan or the chicken will steam instead of sear. Cook undisturbed for 3-4 minutes until a golden-brown crust forms on the bottom. Flip each piece and cook for another 3 minutes until cooked through and no longer pink inside.",
+      "Step 6 - Cook the aromatics: Remove the chicken and set aside on a warm plate covered with foil. In the same pan with all the flavorful browned bits, add the diced onion. Cook over medium heat for 5-6 minutes, stirring occasionally, until the onions are soft and translucent and just starting to turn golden.",
+      "Step 7 - Deglaze and make the sauce: Pour the chicken stock into the pan and use a wooden spoon to scrape up all the caramelized bits from the bottom of the pan - this is called deglazing and adds incredible depth of flavor. Bring to a gentle simmer and let it reduce for 3-4 minutes until the sauce thickens slightly and coats the back of a spoon.",
+      "Step 8 - Combine and finish: Return the seared chicken to the pan and toss gently to coat in the sauce. Reduce heat to low and cook for 2 more minutes just to heat everything through and let the flavors meld together. Taste and adjust seasoning with salt and black pepper as needed.",
+      "Step 9 - Rest and serve: Remove from heat and let the dish rest for 2 minutes before serving - this allows the juices to redistribute throughout the meat so every bite is juicy. Serve immediately over rice or with crusty bread to soak up the delicious sauce.",
+      "Step 10 - Garnish and plate: Transfer to warm serving plates and garnish with freshly chopped parsley and a wedge of lemon on the side. A drizzle of good quality olive oil right before serving adds a beautiful sheen and extra richness to the final dish."
     ],
-    "tips": "One helpful cooking tip"
+    "tips": "For the best results, take the chicken out of the refrigerator 10 minutes before cooking to bring it to room temperature - cold chicken straight from the fridge will lower the pan temperature and prevent proper searing. Always use a meat thermometer to check doneness - chicken is safe to eat at an internal temperature of 74°C (165°F). Leftovers can be stored in an airtight container in the refrigerator for up to 3 days and actually taste even better the next day as the flavors continue to develop."
   }
 ]
 
-IMPORTANT: Start your response with [ 
-and end with ] only. Nothing else.
+REMEMBER: Return ONLY the JSON array.
+No text before, no text after.
+Start with [ and end with ]
 `;
 
     try {
@@ -132,26 +175,32 @@ and end with ] only. Nothing else.
               messages: [
                 {
                   role: 'system',
-                  content: `You are a professional chef.
-You must respond with ONLY a valid JSON array.
-Absolutely no other text.
-No markdown formatting.
-No backticks or code blocks.
-No explanation or introduction.
-Your entire response must start with [
-and end with ]
-Each recipe object must have these exact fields:
-name, emoji, description, prepTime, cookTime,
-servings, difficulty, calories, ingredients,
-steps, tips`
+                  content: `You are a Michelin-star professional 
+chef writing detailed cooking guides for beginners.
+
+STRICT OUTPUT RULES:
+- Respond with ONLY a valid JSON array
+- No markdown, no backticks, no extra text
+- Start with [ and end with ] only
+
+RECIPE QUALITY RULES:
+- Each recipe must have 8 to 12 detailed steps
+- Each step must be at least 2-3 sentences long
+- Steps must include exact temperatures, times,
+  and techniques
+- Steps must explain WHY you are doing each action
+- Include visual cues so cook knows when its done
+- Ingredients must have exact measurements
+- Must include at least 6 ingredients per recipe
+- Tips must be detailed and professional`
                 },
                 {
                   role: 'user', 
                   content: prompt
                 }
               ],
-              max_tokens: 2500,
-              temperature: 0.7,
+              max_tokens: 4000,
+              temperature: 0.8,
             },
             {
               headers: {
