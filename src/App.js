@@ -77,112 +77,129 @@ function App() {
     setRecipes([]);
 
     const prompt = `
-      Generate exactly 3 creative recipes using 
-      these ingredients: ${ingredients.join(', ')}.
+Generate exactly 3 recipes using these
+ingredients: ${ingredients.join(', ')}.
 
-      Filters to apply:
-      - Diet: ${diet}
-      - Cuisine: ${cuisine}
-      - Meal Type: ${mealType}
+Diet: ${diet}
+Cuisine: ${cuisine}  
+Meal Type: ${mealType}
 
-      Return a JSON array with exactly 3 recipes.
-      Each recipe must follow this exact structure:
-      [
-        {
-          "name": "Recipe Name Here",
-          "emoji": "🍕",
-          "description": "One sentence description",
-          "prepTime": "15 mins",
-          "cookTime": "30 mins",
-          "servings": "4",
-          "difficulty": "Easy",
-          "calories": "350 per serving",
-          "ingredients": [
-            "200g ingredient with amount",
-            "2 tbsp ingredient with amount"
-          ],
-          "steps": [
-            "Step 1: Do this first",
-            "Step 2: Then do this",
-            "Step 3: Finally do this"
-          ],
-          "tips": "One helpful cooking tip here"
-        }
-      ]
+Respond with ONLY this JSON structure:
+[
+  {
+    "name": "Recipe Name",
+    "emoji": "🍕",
+    "description": "Short one line description",
+    "prepTime": "15 mins",
+    "cookTime": "30 mins",
+    "servings": "4",
+    "difficulty": "Easy",
+    "calories": "350 per serving",
+    "ingredients": [
+      "200g ingredient name",
+      "2 tbsp ingredient name"
+    ],
+    "steps": [
+      "Step 1: Do this",
+      "Step 2: Do that",
+      "Step 3: Finish like this"
+    ],
+    "tips": "One helpful cooking tip"
+  }
+]
 
-      CRITICAL: Return ONLY the JSON array.
-      No text before. No text after.
-      No markdown. No backticks.
-      Start your response with [ and end with ]
-    `;
+IMPORTANT: Start your response with [ 
+and end with ] only. Nothing else.
+`;
 
     try {
-      const response = await axios.post(
-        'https://api.groq.com/openai/v1/chat/completions',
-        {
-          model: 'llama3-8b-8192',
-          messages: [
+      const models = [
+        'llama-3.3-70b-versatile',
+        'llama-3.1-8b-instant',
+        'gemma2-9b-it'
+      ];
+
+      let response = null;
+      let lastError = null;
+
+      for (const model of models) {
+        try {
+          console.log('Trying model:', model);
+          response = await axios.post(
+            'https://api.groq.com/openai/v1/chat/completions',
             {
-              role: 'system',
-              content: `You are a professional chef assistant. 
-              Your ONLY job is to return a valid JSON array of recipes.
-              STRICT RULES:
-              - Return ONLY a JSON array
-              - NO markdown code blocks
-              - NO backticks
-              - NO extra text before or after
-              - NO explanation
-              - Just the raw JSON array starting with [ and ending with ]
-              - Each recipe must have exactly these fields:
-                name, emoji, description, prepTime, cookTime,
-                servings, difficulty, calories, ingredients, steps, tips`
+              model: model,
+              messages: [
+                {
+                  role: 'system',
+                  content: `You are a professional chef.
+You must respond with ONLY a valid JSON array.
+Absolutely no other text.
+No markdown formatting.
+No backticks or code blocks.
+No explanation or introduction.
+Your entire response must start with [
+and end with ]
+Each recipe object must have these exact fields:
+name, emoji, description, prepTime, cookTime,
+servings, difficulty, calories, ingredients,
+steps, tips`
+                },
+                {
+                  role: 'user', 
+                  content: prompt
+                }
+              ],
+              max_tokens: 2500,
+              temperature: 0.7,
             },
             {
-              role: 'user',
-              content: prompt
+              headers: {
+                Authorization: `Bearer ${process.env.REACT_APP_GROQ_API_KEY}`,
+                'Content-Type': 'application/json',
+              },
+              timeout: 30000,
             }
-          ],
-          max_tokens: 2500,
-          temperature: 0.7,
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${process.env.REACT_APP_GROQ_API_KEY}`,
-            'Content-Type': 'application/json',
-          },
-          timeout: 30000,
+          );
+          console.log('Success with model:', model);
+          console.log('Groq status:', response.status);
+          console.log('Groq model used:', response.data.model);
+          console.log('Raw response:', response.data.choices[0].message.content.substring(0, 300));
+          break;
+        } catch (modelErr) {
+          console.error(`Model ${model} failed:`, modelErr.response?.status);
+          lastError = modelErr;
+          if (modelErr.response?.status !== 400 && 
+              modelErr.response?.status !== 503) {
+            throw modelErr;
+          }
         }
-      );
+      }
+
+      if (!response) {
+        throw lastError;
+      }
 
       const raw = response.data.choices[0].message.content;
-      console.log('Groq raw response:', raw.substring(0, 200));
+      console.log('Raw response preview:', raw.substring(0, 200));
 
-      // Clean the response - remove any markdown if present
       let clean = raw
         .replace(/```json\n?/gi, '')
         .replace(/```\n?/g, '')
         .trim();
 
-      // Find JSON array in response
       const startIndex = clean.indexOf('[');
-      const endIndex   = clean.lastIndexOf(']');
+      const endIndex = clean.lastIndexOf(']');
 
       if (startIndex === -1 || endIndex === -1) {
-        throw new Error('No valid JSON array found in response');
+        throw new Error('No valid JSON array in response');
       }
 
       clean = clean.substring(startIndex, endIndex + 1);
-
-      let recipes;
-      try {
-        recipes = JSON.parse(clean);
-      } catch (parseErr) {
-        console.error('JSON parse error:', parseErr);
-        throw new Error('Failed to parse recipe data. Please try again.');
-      }
+      const recipes = JSON.parse(clean);
 
       if (!Array.isArray(recipes) || recipes.length === 0) {
-        throw new Error('No recipes returned. Please try again.');
+        throw new Error('No recipes returned');
       }
 
       setRecipes(recipes);
@@ -196,20 +213,24 @@ function App() {
       }, 300);
 
     } catch (err) {
-      console.error('Recipe generation error:', err);
+      console.error('Full error:', err.response?.data || err.message);
+      
+      const status = err.response?.status;
+      const errMsg = err.response?.data?.error?.message || '';
 
-      if (err.response?.status === 401) {
-        setError('Invalid Groq API key. Please check your key at console.groq.com');
-      } else if (err.response?.status === 429) {
-        setError('Too many requests. Please wait a moment and try again.');
-      } else if (err.response?.status === 400) {
-        setError('Bad request. Please try with different ingredients.');
-      } else if (err.response?.status === 503) {
-        setError('Groq service unavailable. Please try again in a moment.');
-      } else if (err.message) {
-        setError(err.message);
+      if (status === 401) {
+        setError('Invalid Groq API key. Check Vercel environment variables.');
+      } else if (status === 400) {
+        setError('Request failed. The AI model may have changed. Please try again.');
+        console.error('Bad request details:', err.response?.data);
+      } else if (status === 429) {
+        setError('Too many requests. Please wait 30 seconds and try again.');
+      } else if (status === 503) {
+        setError('Groq service is busy. Please try again in a moment.');
+      } else if (err.message?.includes('JSON')) {
+        setError('AI returned unexpected format. Please try again.');
       } else {
-        setError('Something went wrong. Please try again.');
+        setError(`Error: ${errMsg || err.message || 'Something went wrong. Please try again.'}`);
       }
     } finally {
       setLoading(false);
